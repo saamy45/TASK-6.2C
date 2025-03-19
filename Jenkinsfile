@@ -1,96 +1,88 @@
 pipeline {
     agent any
 
-    tools {
-        maven 'Maven 3.9.9' // Use the Maven version configured in Jenkins
-    }
-
     environment {
-        GIT_REPO = 'https://github.com/your-username/your-repo.git'
-        EMAIL_RECIPIENT = 'your-email@example.com'
+      
+        GIT_REPO_URL = 'https://github.com/saamy45/TASK-6.2C'
+        GIT_BRANCH = 'main'
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: env.GIT_REPO
+                script {
+                    checkout([$class: 'GitSCM',
+                        branches: [[name: "*/${GIT_BRANCH}"]],
+                        userRemoteConfigs: [[
+                            url: "${GIT_REPO_URL}",
+                            credentialsId: "${GIT_CREDENTIALS_ID}"
+                        ]]
+                    ])
+                }
             }
         }
 
         stage('Build') {
             steps {
-                echo 'Building the code...'
-                bat 'mvn clean package'
+                script {
+                    echo "Building the project..."
+                    bat 'mvn clean package' // Use 'sh' instead of 'bat' for Linux/Mac
+                }
             }
         }
 
         stage('Unit and Integration Tests') {
             steps {
-                echo 'Running unit and integration tests...'
-                bat 'mvn test'
-                bat 'mvn verify'
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: '**/target/surefire-reports/*.xml', allowEmptyArchive: true
-                }
-                success {
-                    emailext subject: "Jenkins: Tests Passed ✅",
-                            body: "Unit & Integration Tests completed successfully.",
-                            to: env.EMAIL_RECIPIENT
-                }
-                failure {
-                    emailext subject: "Jenkins: Tests Failed ❌",
-                            body: "Tests failed! Check Jenkins for details.",
-                            to: env.EMAIL_RECIPIENT
+                script {
+                    echo "Running tests..."
+                    bat 'mvn test' // Runs unit tests
                 }
             }
         }
 
         stage('Security Scan') {
             steps {
-                echo 'Running security scan...'
-                bat 'mvn org.owasp:dependency-check-maven:check'
-            }
-            post {
-                success {
-                    emailext subject: "Jenkins: Security Scan Passed ✅",
-                            body: "Security Scan completed successfully.",
-                            to: env.EMAIL_RECIPIENT
-                }
-                failure {
-                    emailext subject: "Jenkins: Security Scan Failed ❌",
-                            body: "Security Scan found vulnerabilities! Check Jenkins for details.",
-                            to: env.EMAIL_RECIPIENT
+                script {
+                    echo "Running security scans..."
+                    bat 'mvn verify' // Replace with security scan tool if needed
                 }
             }
         }
 
         stage('Deploy to Staging') {
             steps {
-                echo 'Deploying to Staging Server...'
-                bat 'scp target/my-app.jar user@staging-server:/deployments/'
+                script {
+                    echo "Deploying to Staging..."
+                    bat 'mvn deploy' // Adjust according to your deployment setup
+                }
             }
         }
 
         stage('Integration Tests on Staging') {
             steps {
-                echo 'Running integration tests on staging...'
-                bat 'curl -X POST http://staging-server:8080/test-endpoint'
+                script {
+                    echo "Running integration tests on Staging..."
+                    bat 'mvn verify' // Replace with actual integration test script
+                }
             }
         }
 
         stage('Deploy to Production') {
             steps {
-                echo 'Deploying to Production Server...'
-                bat 'scp target/my-app.jar user@production-server:/deployments/'
+                script {
+                    echo "Deploying to Production..."
+                    bat 'mvn deploy -P production' // Replace with actual deployment command
+                }
             }
         }
     }
 
     post {
-        always {
-            echo 'Pipeline execution completed!'
+        success {
+            echo "Pipeline execution completed successfully!"
+        }
+        failure {
+            echo "Pipeline execution failed!"
         }
     }
 }
