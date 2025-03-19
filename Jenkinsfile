@@ -2,10 +2,21 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven 3.9.9' // Use the name you configured in Jenkins
+        maven 'Maven 3.9.9' // Use the Maven version configured in Jenkins
+    }
+
+    environment {
+        GIT_REPO = 'https://github.com/your-username/your-repo.git'
+        EMAIL_RECIPIENT = 'your-email@example.com'
     }
 
     stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: env.GIT_REPO
+            }
+        }
+
         stage('Build') {
             steps {
                 echo 'Building the code...'
@@ -19,12 +30,20 @@ pipeline {
                 bat 'mvn test'
                 bat 'mvn verify'
             }
-        }
-
-        stage('Code Analysis') {
-            steps {
-                echo 'Running code analysis...'
-                bat 'mvn sonar:sonar'
+            post {
+                always {
+                    archiveArtifacts artifacts: '**/target/surefire-reports/*.xml', allowEmptyArchive: true
+                }
+                success {
+                    emailext subject: "Jenkins: Tests Passed ✅",
+                            body: "Unit & Integration Tests completed successfully.",
+                            to: env.EMAIL_RECIPIENT
+                }
+                failure {
+                    emailext subject: "Jenkins: Tests Failed ❌",
+                            body: "Tests failed! Check Jenkins for details.",
+                            to: env.EMAIL_RECIPIENT
+                }
             }
         }
 
@@ -33,12 +52,24 @@ pipeline {
                 echo 'Running security scan...'
                 bat 'mvn org.owasp:dependency-check-maven:check'
             }
+            post {
+                success {
+                    emailext subject: "Jenkins: Security Scan Passed ✅",
+                            body: "Security Scan completed successfully.",
+                            to: env.EMAIL_RECIPIENT
+                }
+                failure {
+                    emailext subject: "Jenkins: Security Scan Failed ❌",
+                            body: "Security Scan found vulnerabilities! Check Jenkins for details.",
+                            to: env.EMAIL_RECIPIENT
+                }
+            }
         }
 
         stage('Deploy to Staging') {
             steps {
-                echo 'Deploying to staging...'
-                bat 'scp target/my-app.jar user@staging-server:/path/to/deploy'
+                echo 'Deploying to Staging Server...'
+                bat 'scp target/my-app.jar user@staging-server:/deployments/'
             }
         }
 
@@ -51,20 +82,15 @@ pipeline {
 
         stage('Deploy to Production') {
             steps {
-                echo 'Deploying to production...'
-                bat 'scp target/my-app.jar user@production-server:/path/to/deploy'
+                echo 'Deploying to Production Server...'
+                bat 'scp target/my-app.jar user@production-server:/deployments/'
             }
         }
     }
 
     post {
         always {
-            emailext (
-                subject: "Pipeline Status: ${currentBuild.result ?: 'SUCCESS'}",
-                body: "Stage: ${env.STAGE_NAME}\nStatus: ${currentBuild.result ?: 'SUCCESS'}\nLogs: ${env.BUILD_URL}console",
-                to: 'your-email@example.com',
-                attachLog: true
-            )
+            echo 'Pipeline execution completed!'
         }
     }
 }
