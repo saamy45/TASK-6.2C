@@ -19,7 +19,7 @@ pipeline {
             steps {
                 echo 'Building the project using Jenkins-configured Maven...'
                 withMaven(maven: 'Maven 3.9.9') {
-                    sh 'mvn clean package' 
+                    bat 'mvn clean install' 
                 }
             }
         }
@@ -28,7 +28,7 @@ pipeline {
             steps {
                 echo 'Running unit and integration tests...'
                 withMaven(maven: 'Maven 3.9.9') { 
-                    sh 'mvn test'
+                    bat 'mvn test'
                 }
             }
         }
@@ -38,7 +38,7 @@ pipeline {
                 echo 'Running code analysis with SonarQube...'
                 withMaven(maven: 'Maven 3.9.9') {  
                     withSonarQubeEnv('SonarQube-Local') {  
-                        sh 'mvn sonar:sonar'  
+                        bat 'mvn sonar:sonar'  
                     }
                 }
             }
@@ -48,7 +48,7 @@ pipeline {
             steps {
                 echo 'Performing security scan with OWASP Dependency Check...'
                 withMaven(maven: 'Maven 3.9.9') {
-                    sh 'mvn dependency-check:check | tee ${LOG_FILE}'  
+                    bat 'mvn dependency-check:check | tee ${LOG_FILE}'  
                 }
             }
             post {
