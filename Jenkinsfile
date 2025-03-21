@@ -2,87 +2,103 @@ pipeline {
     agent any
 
     environment {
-      
-        GIT_REPO_URL = 'https://github.com/saamy45/TASK-6.2C'
-        GIT_BRANCH = 'main'
+        EMAIL_RECIPIENTS = 'sambhavv23@gmail.com'  
+        TESTING_ENVIRONMENT = "Testing_Env"
+        PRODUCTION_ENVIRONMENT = "Production_Env"  
+        LOG_FILE = "pipeline.log"
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                script {
-                    checkout([$class: 'GitSCM',
-                        branches: [[name: "*/${GIT_BRANCH}"]],
-                        userRemoteConfigs: [[
-                            url: "${GIT_REPO_URL}",
-                            credentialsId: "${GIT_CREDENTIALS_ID}"
-                        ]]
-                    ])
-                }
+                git branch: 'main', url: 'https://github.com/saamy45/TASK-6.2C.git'
             }
         }
 
         stage('Build') {
             steps {
-                script {
-                    echo "Building the project..."
-                    bat 'mvn clean package' // Use 'sh' instead of 'bat' for Linux/Mac
+                echo 'Building the project using Jenkins-configured Maven...'
+                withMaven(maven: 'Maven') {
+                    sh 'mvn clean package' 
                 }
             }
         }
 
         stage('Unit and Integration Tests') {
             steps {
-                script {
-                    echo "Running tests..."
-                    bat 'mvn test' // Runs unit tests
+                echo 'Running unit and integration tests...'
+                withMaven(maven: 'Maven') { 
+                    sh 'mvn test'
+                }
+            }
+        }
+
+        stage('Code Analysis') {
+            steps {
+                echo 'Running code analysis with SonarQube...'
+                withMaven(maven: 'Maven') {  
+                    withSonarQubeEnv('SonarQube-Local') {  
+                        sh 'mvn sonar:sonar'  
+                    }
                 }
             }
         }
 
         stage('Security Scan') {
             steps {
-                script {
-                    echo "Running security scans..."
-                    bat 'mvn verify' // Replace with security scan tool if needed
+                echo 'Performing security scan with OWASP Dependency Check...'
+                withMaven(maven: 'Maven') {
+                    sh 'mvn dependency-check:check | tee ${LOG_FILE}'  
+                }
+            }
+            post {
+                always {
+                    script {
+                        sendEmail("Security Scan Completed", "${LOG_FILE}")
+                    }
                 }
             }
         }
 
         stage('Deploy to Staging') {
             steps {
-                script {
-                    echo "Deploying to Staging..."
-                    bat 'mvn deploy' // Adjust according to your deployment setup
-                }
+                echo "Deploying the application to staging: ${TESTING_ENVIRONMENT}"
             }
         }
 
         stage('Integration Tests on Staging') {
             steps {
-                script {
-                    echo "Running integration tests on Staging..."
-                    bat 'mvn verify' // Replace with actual integration test script
-                }
+                echo "Running integration tests on staging"
             }
         }
 
         stage('Deploy to Production') {
             steps {
-                script {
-                    echo "Deploying to Production..."
-                    bat 'mvn deploy -P production' // Replace with actual deployment command
-                }
+                echo "Deploying application to production: ${PRODUCTION_ENVIRONMENT}"
             }
         }
     }
 
     post {
         success {
-            echo "Pipeline execution completed successfully!"
+            script {
+                sendEmail("Pipeline Execution Successful", "${LOG_FILE}")
+            }
         }
         failure {
-            echo "Pipeline execution failed!"
+            script {
+                sendEmail("Pipeline Execution Failed", "${LOG_FILE}")
+            }
         }
     }
+}
+
+def sendEmail(String stageMessage, String logFile) {
+    emailext(
+        subject: "Jenkins Pipeline Notification: ${stageMessage}",
+        body: "Pipeline Stage Completed: ${stageMessage}\nCheck Jenkins for details.",
+        to: "${EMAIL_RECIPIENTS}",
+        attachLog: true,
+        attachmentsPattern: logFile
+    )
 }
