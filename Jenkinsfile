@@ -7,7 +7,7 @@ pipeline {
         PRODUCTION_ENVIRONMENT = "Production_Env"  
         LOG_FILE = "pipeline.log"
     }
-
+hi
     stages {
         stage('Checkout Code') {
             steps {
